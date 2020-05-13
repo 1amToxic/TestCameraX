@@ -12,8 +12,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.example.cameraxp.R
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import kotlin.math.log
-
+import io.reactivex.rxjava3.core.BackpressureStrategy
+import io.reactivex.rxjava3.core.Flowable
+import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.schedulers.Schedulers
+import kotlinx.coroutines.*
 
 class RecordActivity : AppCompatActivity(), View.OnClickListener {
     lateinit var btnStartRecord: FloatingActionButton
@@ -24,37 +27,55 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
     private var permissionToRecordAccepted = false
     private var permissions: Array<String> = arrayOf(Manifest.permission.RECORD_AUDIO)
     private val REQUEST_RECORD_AUDIO_PERMISSION = 200
-    private val audioSource = MediaRecorder.AudioSource.MIC
-    private val samplingRate = 11025  /* in Hz*/
-    private val channelConfig = AudioFormat.CHANNEL_CONFIGURATION_MONO
-    private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-    private val bufferSize =
-        AudioRecord.getMinBufferSize(samplingRate, channelConfig, audioFormat)
-    private val sampleNumBits = 16
-    private val numChannels = 1
-    private fun analysisAudio(){
-        var data = ShortArray(100000)
-        val recorder =
-            AudioRecord(audioSource, samplingRate, channelConfig, audioFormat, bufferSize)
-        recorder.startRecording()
-        val isRecording = true
 
-//        val audioPlayer = AudioTrack(
-//            AudioManager.STREAM_MUSIC, 44100, AudioFormat.CHANNEL_CONFIGURATION_MONO,
-//            AudioFormat.ENCODING_PCM_16BIT, bufferSize, AudioTrack.MODE_STREAM
-//        )
-//
-//        if (audioPlayer.playState != AudioTrack.PLAYSTATE_PLAYING) audioPlayer.play()
-        var readBytes :Int
-        var writtenBytes = 0
-        do {
-            readBytes = recorder.read(data, 0, bufferSize/4)
-            Log.d("AppLog","read " + readBytes.toString())
-            if (AudioRecord.ERROR_INVALID_OPERATION != readBytes) {
-//                writtenBytes += audioPlayer.write(data, 0, readBytes)
-                Log.d("AppLog","write "+ writtenBytes.toString())
+    //setup for record and playing then
+    private var isRun = false
+    var bufferSize : Int = 0
+    private val SAMPLE_RATE = 44100
+    lateinit var mRecord : AudioRecord
+    lateinit var mTrack : AudioTrack
+    private val encoding_pcm = AudioFormat.ENCODING_PCM_16BIT
+    var buffer = ByteArray(44200)
+    private fun analysisAudio(){
+        try {
+            bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_CONFIGURATION_MONO,
+                                    encoding_pcm)
+            if (bufferSize <= SAMPLE_RATE) {
+                bufferSize = SAMPLE_RATE;
             }
-        } while (isRecording)
+            mRecord = AudioRecord(MediaRecorder.AudioSource.MIC,SAMPLE_RATE,
+                                    AudioFormat.CHANNEL_IN_MONO,
+                                    encoding_pcm,
+                                    bufferSize*1)
+            mTrack = AudioTrack(AudioManager.STREAM_MUSIC,
+                                SAMPLE_RATE,AudioFormat.CHANNEL_OUT_MONO,
+                                encoding_pcm,
+                                bufferSize * 1,
+                                AudioTrack.MODE_STREAM)
+            mTrack.playbackRate = SAMPLE_RATE
+        }catch (ex: Exception){
+
+        }
+        mRecord.startRecording()
+        Log.d("AppLog","StartRecording")
+        mTrack.play()
+        Log.d("AppLog","StartPlaying")
+        isRun = true
+        var readBytes :  Int = 0
+        var writeBytes : Int = 0
+        do {
+            Observable.just("buffer")
+                .observeOn(Schedulers.io())
+                .subscribe(
+                    {readBytes = mRecord.read(buffer,0,SAMPLE_RATE)},
+                    { error -> Log.d("AppLog",error.toString())},
+                    {if (AudioRecord.ERROR_INVALID_OPERATION != readBytes) {
+                        writeBytes += mTrack.write(buffer, 0, readBytes)
+                    }}
+                )
+        }while (isRun)
+    }
+    private fun do_loopback(){
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,14 +89,7 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
         btnStopRecord.setOnClickListener(this)
         btnStopRecord.visibility = View.INVISIBLE
         btnPlayRecord.visibility = View.INVISIBLE
-        outputFile =
-            this.getExternalFilesDir(Environment.DIRECTORY_DCIM)?.absolutePath + "/recording.3gp"
-        myRecorder = MediaRecorder()
-        myRecorder!!.setAudioSource(MediaRecorder.AudioSource.MIC)
-        myRecorder!!.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
-        myRecorder!!.setAudioEncoder(MediaRecorder.OutputFormat.AMR_NB)
-        myRecorder!!.setOutputFile(outputFile)
-
+        outputFile = this.getExternalFilesDir(Environment.DIRECTORY_DCIM)?.absolutePath + "/recordings.3gp"
     }
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -94,9 +108,18 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
         when (v!!.id) {
             R.id.fab_record -> {
                 try {
-//                    myRecorder!!.prepare()
+//                    myRecorder = MediaRecorder()
+//                    myRecorder!!.apply {
+//                        setAudioSource(MediaRecorder.AudioSource.MIC)
+//                        setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+//                        setAudioEncoder(MediaRecorder.OutputFormat.AMR_NB)
+//                        setOutputFile(outputFile)
+//                    }
+                    isRun = true
+//                    myRecorder!!.prepare(                                                                                                                    )
 //                    myRecorder!!.start()
                     analysisAudio()
+//                    do_loopback()
                 } catch (ex: Exception) {
 
                 }
