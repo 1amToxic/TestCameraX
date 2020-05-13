@@ -35,10 +35,10 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
     lateinit var mRecord : AudioRecord
     lateinit var mTrack : AudioTrack
     private val encoding_pcm = AudioFormat.ENCODING_PCM_16BIT
-    var buffer = ByteArray(44200)
+    var buffer = ByteArray(44100)
     private fun analysisAudio(){
         try {
-            bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_CONFIGURATION_MONO,
+            bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_IN_MONO,
                                     encoding_pcm)
             if (bufferSize <= SAMPLE_RATE) {
                 bufferSize = SAMPLE_RATE;
@@ -64,18 +64,13 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
         var readBytes :  Int = 0
         var writeBytes : Int = 0
         do {
-            Observable.just("buffer")
-                .observeOn(Schedulers.io())
-                .subscribe(
-                    {readBytes = mRecord.read(buffer,0,SAMPLE_RATE)},
-                    { error -> Log.d("AppLog",error.toString())},
-                    {if (AudioRecord.ERROR_INVALID_OPERATION != readBytes) {
-                        writeBytes += mTrack.write(buffer, 0, readBytes)
-                    }}
-                )
+            readBytes = mRecord.read(buffer,0,SAMPLE_RATE)
+            Observable.just(buffer)
+                .observeOn(Schedulers.computation())
+                .subscribe {if (AudioRecord.ERROR_INVALID_OPERATION != readBytes) {
+                    writeBytes += mTrack.write(buffer, 0, readBytes) }}
+
         }while (isRun)
-    }
-    private fun do_loopback(){
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,8 +82,6 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
         btnPlayRecord.setOnClickListener(this)
         btnStartRecord.setOnClickListener(this)
         btnStopRecord.setOnClickListener(this)
-        btnStopRecord.visibility = View.INVISIBLE
-        btnPlayRecord.visibility = View.INVISIBLE
         outputFile = this.getExternalFilesDir(Environment.DIRECTORY_DCIM)?.absolutePath + "/recordings.3gp"
     }
     override fun onRequestPermissionsResult(
@@ -107,6 +100,7 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
     override fun onClick(v: View?) {
         when (v!!.id) {
             R.id.fab_record -> {
+
                 try {
 //                    myRecorder = MediaRecorder()
 //                    myRecorder!!.apply {
@@ -123,13 +117,17 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
                 } catch (ex: Exception) {
 
                 }
-                btnStartRecord.visibility = View.INVISIBLE
-                btnStopRecord.visibility = View.VISIBLE
+
                 Log.d("AppLog", "Record start")
             }
             R.id.fab_stop -> {
                 myRecorder!!.stop()
                 myRecorder!!.release()
+
+//                btnPlayRecord.isClickable = false
+//                mRecord.stop()
+//                mTrack.stop()
+
                 myRecorder = null
                 btnStartRecord.visibility = View.VISIBLE
                 btnStopRecord.visibility = View.INVISIBLE
