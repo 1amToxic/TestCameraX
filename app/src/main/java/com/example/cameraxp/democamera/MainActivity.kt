@@ -1,8 +1,8 @@
-package com.example.cameraxp
+package com.example.cameraxp.democamera
 
 import android.Manifest
-import android.Manifest.permission.CAMERA
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.Matrix
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -12,12 +12,14 @@ import android.view.Surface
 import android.view.TextureView
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.camera.core.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import com.example.cameraxp.R
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.subjects.BehaviorSubject
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
@@ -119,7 +121,19 @@ class MainActivity : AppCompatActivity(), LifecycleOwner {
 
         // Build the image analysis use case and instantiate our analyzer
         val analyzerUseCase = ImageAnalysis(analyzerConfig).apply {
-            setAnalyzer(executor, LuminosityAnalyzer())
+            val colorAnalyzer = LuminosityAnalyzer()
+            colorAnalyzer.hexColor
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe({
+                    // success
+//                    colorName.text = it.toString() //hexa code in the textView
+//                    colorName.setBackgroundColor(Color.parseColor(it.toString())) //background color of the textView
+//                    (sight.drawable as GradientDrawable).setStroke(10, Color.parseColor(it.toString())) //border color of the sight in the middle of the screen
+                },{
+                    // error
+                    Log.d("AppLog", "Can not get color :(")
+                })
+            setAnalyzer(executor, colorAnalyzer)
         }
         CameraX.bindToLifecycle(this, preview,imageCapture,analyzerUseCase)
     }
@@ -169,7 +183,7 @@ class MainActivity : AppCompatActivity(), LifecycleOwner {
 //phân tích
 private class LuminosityAnalyzer : ImageAnalysis.Analyzer {
     private var lastAnalyzedTimestamp = 0L
-
+    var hexColor = BehaviorSubject.create<Any>()
     /**
      * Helper extension function used to extract a byte array from an
      * image plane buffer
@@ -180,24 +194,47 @@ private class LuminosityAnalyzer : ImageAnalysis.Analyzer {
         get(data)   // Copy the buffer into a byte array
         return data // Return the byte array
     }
+    private fun getRGBfromYUV(image: ImageProxy): Triple<Double, Double, Double> {
+        val planes = image.planes
 
+        val height = image.height
+        val width = image.width
+
+        // Y
+        val yArr = planes[0].buffer
+        val yArrByteArray = yArr.toByteArray()
+        val yPixelStride = planes[0].pixelStride
+        val yRowStride = planes[0].rowStride
+
+        // U
+        val uArr = planes[1].buffer
+        val uArrByteArray =uArr.toByteArray()
+        val uPixelStride = planes[1].pixelStride
+        val uRowStride = planes[1].rowStride
+
+        // V
+        val vArr = planes[2].buffer
+        val vArrByteArray = vArr.toByteArray()
+        val vPixelStride = planes[2].pixelStride
+        val vRowStride = planes[2].rowStride
+
+        val y = yArrByteArray[(height * yRowStride + width * yPixelStride) / 2].toInt() and 255
+        val u = (uArrByteArray[(height * uRowStride + width * uPixelStride) / 4].toInt() and 255) - 128
+        val v = (vArrByteArray[(height * vRowStride + width * vPixelStride) / 4].toInt() and 255) - 128
+
+        val r = y + (1.370705 * v)
+        val g = y - (0.698001 * v) - (0.337633 * u)
+        val b = y + (1.732446 * u)
+
+        return Triple(r,g,b)
+    }
     override fun analyze(image: ImageProxy, rotationDegrees: Int) {
         val currentTimestamp = System.currentTimeMillis()
-        // Calculate the average luma no more often than every second
         if (currentTimestamp - lastAnalyzedTimestamp >=
             TimeUnit.SECONDS.toMillis(1)) {
-            // Since format in ImageAnalysis is YUV, image.planes[0]
-            // contains the Y (luminance) plane
-            val buffer = image.planes[0].buffer
-            // Extract image data from callback object
-            val data = buffer.toByteArray()
-            // Convert the data into an array of pixel values
-            val pixels = data.map { it.toInt() and 0xFF }
-            // Compute average luminance for the image
-            val luma = pixels.average()
-            // Log the new luma value
-            Log.d("CameraXApp", "Average luminosity: $luma")
-            // Update timestamp of last analyzed frame
+            val colors = getRGBfromYUV(image)
+            hexColor.onNext(String.format("#%02x%02x%02x", colors.first.toInt(), colors.second.toInt(), colors.third.toInt()))
+            Log.d("test", "hexColor: $hexColor")
             lastAnalyzedTimestamp = currentTimestamp
         }
     }

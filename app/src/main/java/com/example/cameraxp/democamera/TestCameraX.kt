@@ -1,7 +1,8 @@
-package com.example.cameraxp
+package com.example.cameraxp.democamera
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import com.example.cameraxp.R
 
 class TestCameraX : AppCompatActivity() {
 

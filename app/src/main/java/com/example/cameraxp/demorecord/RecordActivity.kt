@@ -64,6 +64,7 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
         var readBytes :  Int = 0
         var writeBytes : Int = 0
         do {
+//            buffer = ByteArray(44100)
             readBytes = mRecord.read(buffer,0,SAMPLE_RATE)
             Observable.just(buffer)
                 .observeOn(Schedulers.computation())
@@ -82,6 +83,8 @@ class RecordActivity : AppCompatActivity(), View.OnClickListener {
         btnPlayRecord.setOnClickListener(this)
         btnStartRecord.setOnClickListener(this)
         btnStopRecord.setOnClickListener(this)
+        btnStopRecord.visibility = View.INVISIBLE
+        btnPlayRecord.visibility = View.INVISIBLE
         outputFile = this.getExternalFilesDir(Environment.DIRECTORY_DCIM)?.absolutePath + "/recordings.3gp"
     }
     override fun onRequestPermissionsResult(

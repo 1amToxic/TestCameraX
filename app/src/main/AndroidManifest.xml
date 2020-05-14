@@ -18,7 +18,7 @@
 <!--        <activity android:name=".demorecord.RecordActivity"></activity>-->
         <!-- <activity android:name=".democamera.CameraActivity"></activity> -->
         <!-- <activity android:name=".TestCameraX"></activity> -->
-        <activity android:name=".demorecord.RecordActivity">
+        <activity android:name=".democamera.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
